@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -233,6 +234,14 @@ func (s *Tproxy) RunTCPServer() error {
 		if err != nil {
 			return err
 		}
+
+		addr, err := getTCPOriginalDstAddr(c)
+		if err != nil {
+			return err
+		}
+		
+		fmt.Println(addr.String())
+		
 		go func(c *net.TCPConn) {
 			defer c.Close()
 			if s.TCPTimeout != 0 {
@@ -267,12 +276,14 @@ func (s *Tproxy) RunUDPServer() error {
 		b := make([]byte, 65535)
 		n, saddr, daddr, err := tproxy.ReadFromUDP(s.UDPConn, b)
 		if err != nil {
+			fmt.Printf("RunUDPServer err:%v\n", err)
 			return err
 		}
+		fmt.Printf("RunUDPServer %s->%s n=%v data:%v\n", saddr.String(), daddr.String(), n, b[0:n])
 		if n == 0 {
 			continue
 		}
-		go func(saddr, daddr *net.UDPAddr, b []byte) {
+		go func(saddr, daddr *net.UDPAddr, b []byte) {			
 			if err := s.UDPHandle(saddr, daddr, b); err != nil {
 				log.Println(err)
 				return
@@ -295,6 +306,72 @@ func (s *Tproxy) Shutdown() error {
 		return err
 	}
 	return err1
+}
+
+func getConntrackIPv6TCPOriginalDstAddr(localAddr string, remoteAddr string)(destAddrString string, err error){
+	localhost, localport, _ := net.SplitHostPort(localAddr)
+	remotehost, remoteport, _ := net.SplitHostPort(remoteAddr)
+	//syslogger.Write([]byte(fmt.Sprintf("from %s:%v -> %s:%v", remotehost, remoteport, localhost, localport)))
+	cmdString := fmt.Sprintf(fmt.Sprintf("conntrack -f ipv6 -q %s -r %s -p tcp --reply-port-dst %s --reply-port-src %s -L|awk '{print $6\"=\"$8}'|awk -F \"=\" '{print \"[\"$2\"]:\"$4}'",
+		remotehost, localhost, remoteport, localport))
+	//syslogger.Write([]byte(fmt.Sprintf("IPv6 cmdString: %s", cmdString)))		
+	out, err := exec.Command("bash", "-c", cmdString).Output()
+	if err != nil {
+		fmt.Printf("getConntrackIPv6TCPOriginalDstAddr conntrack error: %v", err)
+		return
+	}
+	//syslogger.Write([]byte(fmt.Sprintf("IPv6 OriginDstAddr: %s", string(out))))
+			
+	destAddrString = strings.Replace(string(out), "\n", "", -1)
+
+	return
+}
+
+func getTCPOriginalDstAddr(conn *net.TCPConn) (addr net.Addr, err error) {
+
+	fc, err := conn.File()
+	if err != nil {
+		//log.Logf("copy to file error")
+		fmt.Printf("getTCPOriginalDstAddr() copy to file error")
+		return
+	} 
+
+	//SO_ORIGINAL_DST=80
+	//struct sockaddr_in {
+	//	__kernel_sa_family_t  sin_family;     /* Address family               */
+	//	__be16                sin_port;       /* Port number                  */
+  	//	struct in_addr        sin_addr;       /* Internet address             */
+  	//	/* Pad to size of `struct sockaddr'. */
+	//	unsigned char         __pad[__SOCK_SIZE__ - sizeof(short int) -
+    //                    sizeof(unsigned short int) - sizeof(struct in_addr)];
+	//};
+	//syscall.GetsockoptIPv6Mreq only support IPv4
+	mreq, err := syscall.GetsockoptIPv6Mreq(int(fc.Fd()), syscall.IPPROTO_IP, 80)
+	if err != nil {
+		localAddr := conn.LocalAddr().String()
+		remoteAddr := conn.RemoteAddr().String()
+		destAddr, err1 := getConntrackIPv6TCPOriginalDstAddr(localAddr, remoteAddr)
+		if err1 != nil {
+			err = err1
+			fmt.Printf("get IPv6 tcp conntrack destAddr error: %v", err)
+			return 
+		}
+		addr, err = net.ResolveTCPAddr("tcp6", destAddr)
+		if err != nil {
+			fmt.Printf("IPv6 tcp error: %v", err)
+			return
+		}		
+	} else {
+		ip := net.IPv4(mreq.Multiaddr[4], mreq.Multiaddr[5], mreq.Multiaddr[6], mreq.Multiaddr[7])
+		port := uint16(mreq.Multiaddr[2])<<8 + uint16(mreq.Multiaddr[3])
+		addr, err = net.ResolveTCPAddr("tcp4", fmt.Sprintf("%s:%d", ip.String(), port))
+		if err != nil {
+			fmt.Printf("IPv4 tcp error: %v", err)
+			return
+		}
+	}
+
+	return
 }
 
 // TCPHandle handles request.
@@ -324,7 +401,13 @@ func (s *Tproxy) TCPHandle(c *net.TCPConn) error {
 		return err
 	}
 
-	a, address, port, err := socks5.ParseAddress(c.LocalAddr().String())
+	addr, err := getTCPOriginalDstAddr(c)
+	if err != nil {
+		return err
+	}
+	
+	fmt.Printf(addr.String())
+	a, address, port, err := socks5.ParseAddress(addr.String())
 	if err != nil {
 		return err
 	}
@@ -389,6 +472,7 @@ type TproxyUDPExchange struct {
 }
 
 func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
+	fmt.Printf("UDPHandle addr=%s daddr=%s\n", addr.String(), daddr.String())
 	a, address, port, err := socks5.ParseAddress(daddr.String())
 	if err != nil {
 		return err
@@ -428,7 +512,7 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	c, err := tproxy.DialUDP("udp", daddr, addr)
 	if err != nil {
 		rc.Close()
-		return errors.New(fmt.Sprintf("src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
+		return errors.New(fmt.Sprintf("UDPHandle src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
 	}
 	ue = &TproxyUDPExchange{
 		RemoteConn: rc,
@@ -461,6 +545,8 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 			if err != nil {
 				break
 			}
+
+			fmt.Printf("UDPHandle ue.LocalConn=%s->%s data:%v\n", ue.LocalConn.LocalAddr().String(), ue.LocalConn.RemoteAddr().String(), data)
 			if _, err := ue.LocalConn.Write(data); err != nil {
 				break
 			}

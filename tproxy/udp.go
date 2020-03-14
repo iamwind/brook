@@ -15,13 +15,16 @@
 package tproxy
 
 import (
-	"bytes"
-	"encoding/binary"
+	//"bytes"
+	//"encoding/binary"
 	"net"
 	"os"
+	"os/exec"
+	"strings"
 	"strconv"
 	"syscall"
-	"unsafe"
+	//"unsafe"
+	"fmt"
 
 	"github.com/txthinking/x"
 )
@@ -53,14 +56,49 @@ func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
 	return tmp.(*net.UDPConn), nil
 }
 
+func getUDPOriginalDstAddr(addr *net.UDPAddr) (originalDst *net.UDPAddr, err error) {
+	localhost := "172.31.255.254"
+	localport := "1080"
+	remotehost := addr.IP.String()
+	remoteport := strconv.Itoa(addr.Port)
+	//fmt.Printf("getUDPOriginalDstAddr rom %s:%v -> %s:%v\n", remotehost, remoteport, localhost, localport)
+	cmdString := fmt.Sprintf(fmt.Sprintf("conntrack -q %s -r %s -p udp --reply-port-dst %s --reply-port-src %s -L|awk '{print $5\"=\"$7}'|awk -F \"=\" '{print \"\"$2\":\"$4}'",
+		remotehost, localhost, remoteport, localport))
+	//fmt.Printf("IPv6 cmdString: %s\n", cmdString)
+	tmp, err := exec.Command("bash", "-c", cmdString).Output()
+	if err != nil {
+		fmt.Printf("getUDPOriginalDstAddr conntrack error: %v\n", err)
+		return
+	}
+	out := strings.Replace(string(tmp), "\n", "", -1)
+	//fmt.Printf("getUDPOriginalDstAddr OriginDstAddr: %s\n", out)
+	ip := net.ParseIP(strings.Split(out, ":")[0])
+	port,_ := strconv.Atoi(strings.Split(out, ":")[1])
+
+	originalDst = &net.UDPAddr{
+		IP:   ip,
+		Port: port,
+	}
+	
+	return
+}
+
 func ReadFromUDP(conn *net.UDPConn, b []byte) (int, *net.UDPAddr, *net.UDPAddr, error) {
 	oob := make([]byte, 1024)
-	n, oobn, _, addr, err := conn.ReadMsgUDP(b, oob)
+	n, _, _, addr, err := conn.ReadMsgUDP(b, oob)
 	if err != nil {
 		return 0, nil, nil, err
 	}
 
-	msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
+	fmt.Printf("ReadFromUDP addr:%s\n", addr.String())
+
+	var originalDst *net.UDPAddr
+	originalDst, err = getUDPOriginalDstAddr(addr)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+
+	/*msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
 		return 0, nil, nil, err
 	}
@@ -97,16 +135,19 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (int, *net.UDPAddr, *net.UDPAddr, 
 	}
 	if originalDst == nil {
 		return 0, nil, nil, nil
-	}
+	}*/
+
+	fmt.Printf("ReadFromUDP originalDst:%s\n", originalDst.String())
 	return n, addr, originalDst, nil
 }
 
 func DialUDP(network string, laddr *net.UDPAddr, raddr *net.UDPAddr) (*net.UDPConn, error) {
+	fmt.Printf("DialUDP %s -> %s\n", laddr.String(), raddr.String())
 	remoteSocketAddress, err := udpAddrToSocketAddr(raddr)
 	if err != nil {
 		return nil, err
 	}
-
+	
 	localSocketAddress, err := udpAddrToSocketAddr(laddr)
 	if err != nil {
 		return nil, err

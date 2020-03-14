@@ -20,6 +20,9 @@ import (
 	"log"
 	"net"
 	"time"
+	"strings"
+	"strconv"
+	"fmt"
 
 	cache "github.com/patrickmn/go-cache"
 	"github.com/txthinking/brook/limits"
@@ -260,6 +263,7 @@ func (s *Server) TCPHandle(c *net.TCPConn) error {
 type ServerUDPExchange struct {
 	ClientAddr *net.UDPAddr
 	RemoteConn *net.UDPConn
+	ServerAddr *net.UDPAddr
 	Internet   plugin.Internet
 }
 
@@ -274,7 +278,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 			l := int(binary.BigEndian.Uint16(data[len(data)-2:]))
 			data = data[0 : len(data)-l-2]
 		}
-		i, err := ue.RemoteConn.Write(data)
+		i, err := ue.RemoteConn.WriteToUDP(data, ue.ServerAddr)
 		if err != nil {
 			return err
 		}
@@ -309,10 +313,34 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	if err != nil {
 		return err
 	}
-	rc := c.(*net.UDPConn)
+
+	var laddr *net.UDPAddr
+	ip := net.ParseIP(strings.Split(c.LocalAddr().String(), ":")[0])
+	port,_ := strconv.Atoi(strings.Split(c.LocalAddr().String(), ":")[1])
+	laddr = &net.UDPAddr{
+		IP:   ip,
+		Port: port,
+	}
+	c.Close()
+	rc, err := net.ListenUDP("udp", laddr)
+	if err != nil {
+		fmt.Printf("Dial and Listen on:%s err:%v\n", laddr.String(), err)
+		return err
+	}
+
+	fmt.Printf("Dial and Listen on:%s\n", laddr.String())
+
+	var serverAddr *net.UDPAddr	
+	serverAddr = &net.UDPAddr{
+		IP:   net.IPv4(h[0], h[1], h[2], h[3]),
+		Port: int(p[0])<<8 + int(p[1]),
+	}
+
+	//rc := c.(*net.UDPConn)
 	ue = &ServerUDPExchange{
 		ClientAddr: addr,
 		RemoteConn: rc,
+		ServerAddr: serverAddr,
 		Internet:   ai,
 	}
 	if err := send(ue, data); err != nil {
@@ -323,9 +351,14 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	s.Cache.Set(ue.ClientAddr.String(), ue, cache.DefaultExpiration)
 	go func(ue *ServerUDPExchange) {
 		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("Recovered: UDPHandle %v\n", r)
+			}
 			s.Cache.Delete(ue.ClientAddr.String())
 			ue.RemoteConn.Close()
-			ue.Internet.Close()
+			if ue.Internet != nil {
+				ue.Internet.Close()
+			}
 		}()
 		var b [65535]byte
 		for {
@@ -334,10 +367,14 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 					break
 				}
 			}
-			n, err := ue.RemoteConn.Read(b[:])
+			n, remoteAddr, err := ue.RemoteConn.ReadFromUDP(b[:])
 			if err != nil {
+				fmt.Printf("UDPHandle ue.RemoteConn.ReadFromUDP %s err:%v\n", ue.RemoteConn.LocalAddr().String(), err)
 				break
 			}
+			
+			fmt.Printf("ue.RemoteConn.ReadFromUDP from %s->%s %v bytes:%v\n", remoteAddr.String(), ue.RemoteConn.LocalAddr().String(), n, b[0:n])
+
 			a, addr, port, err := socks5.ParseAddress(ue.ClientAddr.String())
 			if err != nil {
 				log.Println(err)
