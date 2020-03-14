@@ -282,6 +282,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("UDPHandle send %s->%s data:%v\n", ue.RemoteConn.LocalAddr().String(), ue.ServerAddr.String(), data)
 		if ue.Internet != nil {
 			if err := ue.Internet.UDPEgress(i); err != nil {
 				return err
