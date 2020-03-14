@@ -509,26 +509,32 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	if err != nil {
 		return err
 	}
-	c, err := tproxy.DialUDP("udp", daddr, addr)
-	if err != nil {
-		rc.Close()
-		return errors.New(fmt.Sprintf("UDPHandle src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
-	}
+
+	//var laddr *net.UDPAddr
+	//laddr = &net.UDPAddr{
+	//	IP:   net.ParseIP("172.31.255.254"),
+	//	Port: 1080,
+	//}
+	//c, err := tproxy.DialUDP("udp", laddr, addr)
+	//if err != nil {
+	//	rc.Close()
+	//	return errors.New(fmt.Sprintf("UDPHandle src: %s dst: %s %s", laddr.String(), addr.String(), err.Error()))
+	//}
 	ue = &TproxyUDPExchange{
 		RemoteConn: rc,
-		LocalConn:  c,
+		//LocalConn:  c,
 	}
 	if err := send(ue, b); err != nil {
 		ue.RemoteConn.Close()
-		ue.LocalConn.Close()
+		//ue.LocalConn.Close()
 		return err
 	}
-	s.Cache.Set(ue.LocalConn.RemoteAddr().String(), ue, cache.DefaultExpiration)
+	s.Cache.Set(addr.String(), ue, cache.DefaultExpiration)
 	go func(ue *TproxyUDPExchange) {
 		defer func() {
-			s.Cache.Delete(ue.LocalConn.RemoteAddr().String())
+			s.Cache.Delete(addr.String())
 			ue.RemoteConn.Close()
-			ue.LocalConn.Close()
+			//ue.LocalConn.Close()
 		}()
 		var b [65535]byte
 		for {
@@ -546,10 +552,15 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 				break
 			}
 
-			fmt.Printf("UDPHandle ue.LocalConn=%s->%s data:%v\n", ue.LocalConn.LocalAddr().String(), ue.LocalConn.RemoteAddr().String(), data)
-			if _, err := ue.LocalConn.Write(data); err != nil {
-				break
+			//fmt.Printf("UDPHandle ue.LocalConn=%s->%s data:%v\n", ue.LocalConn.LocalAddr().String(), ue.LocalConn.RemoteAddr().String(), data)
+			//if _, err := ue.LocalConn.Write(data); err != nil {
+			//	break
+			//}
+			_, err = s.UDPConn.WriteToUDP(data, addr)
+			if err != nil {
+				fmt.Printf("UDPHandle return %s err:%v\n", addr.String(), err)
 			}
+			fmt.Printf("UDPHandle return %s data:%v\n", addr.String(), data)
 		}
 	}(ue)
 	return nil
