@@ -376,7 +376,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 			
 			fmt.Printf("ue.RemoteConn.ReadFromUDP from %s->%s %v bytes:%v\n", remoteAddr.String(), ue.RemoteConn.LocalAddr().String(), n, b[0:n])
 
-			a, addr, port, err := socks5.ParseAddress(ue.ClientAddr.String())
+			a, addr, port, err := socks5.ParseAddress(remoteAddr.String())
 			if err != nil {
 				log.Println(err)
 				break
