@@ -547,11 +547,18 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 			if err != nil {
 				break
 			}
-			_, _, _, data, err := Decrypt(s.Password, b[0:n])
+			_, newaddr, newport, data, err := Decrypt(s.Password, b[0:n])
 			if err != nil {
 				break
 			}
-
+			
+			var saddr *net.UDPAddr
+			saddr = &net.UDPAddr{
+				IP: net.IP{newaddr[0], newaddr[1], newaddr[2], newaddr[3]},
+				Port: int(newport[0])<<8 + int(newport[1]),
+			}
+			
+			fmt.Printf("UDPHandle send to %s get from %s data:%v\n", daddr, saddr, data)
 			//fmt.Printf("UDPHandle ue.LocalConn=%s->%s data:%v\n", ue.LocalConn.LocalAddr().String(), ue.LocalConn.RemoteAddr().String(), data)
 			//if _, err := ue.LocalConn.Write(data); err != nil {
 			//	break
