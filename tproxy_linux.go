@@ -563,9 +563,17 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 			//if _, err := ue.LocalConn.Write(data); err != nil {
 			//	break
 			//}
-			_, err = s.UDPConn.WriteToUDP(data, addr)
-			if err != nil {
-				fmt.Printf("UDPHandle return %s err:%v\n", addr.String(), err)
+			if daddr.String() == saddr.String() {
+				_, err = s.UDPConn.WriteToUDP(data, addr)
+				if err != nil {
+					fmt.Printf("UDPHandle return %s err:%v\n", addr.String(), err)
+				}
+			} else {				
+				c, err := tproxy.DialUDP("udp", saddr, addr)
+				if err != nil {					
+					fmt.Printf("UDPHandle src: %s dst: %s err:%s", saddr.String(), addr.String(), err.Error())					
+				}
+				c.Write(data)
 			}
 			fmt.Printf("UDPHandle return %s data:%v\n", addr.String(), data)
 		}
