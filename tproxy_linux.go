@@ -567,13 +567,20 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 				_, err = s.UDPConn.WriteToUDP(data, addr)
 				if err != nil {
 					fmt.Printf("UDPHandle return %s err:%v\n", addr.String(), err)
+					return
 				}
 			} else {				
 				c, err := tproxy.DialUDP("udp", saddr, addr)
 				if err != nil {					
-					fmt.Printf("UDPHandle src: %s dst: %s err:%s", saddr.String(), addr.String(), err.Error())					
+					fmt.Printf("UDPHandle DialUDP src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+					return
 				}
-				c.Write(data)
+				_, err = c.Write(data)
+				if err != nil {
+					fmt.Printf("UDPHandle Write src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+					return
+				}
+				c.Close()
 			}
 			fmt.Printf("UDPHandle return %s data:%v\n", addr.String(), data)
 		}
