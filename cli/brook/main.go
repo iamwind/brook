@@ -26,7 +26,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/txthinking/brook"
+	"brook"
 	"brook/sysproxy"
 	"github.com/urfave/cli"
 )
