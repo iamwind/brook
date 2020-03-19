@@ -19,8 +19,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/txthinking/brook/limits"
-	"github.com/txthinking/brook/sysproxy"
+	"brook/limits"
+	"brook/sysproxy"
 	"github.com/txthinking/gotun2socks"
 	"github.com/txthinking/gotun2socks/tun"
 )

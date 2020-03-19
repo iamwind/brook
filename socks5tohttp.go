@@ -21,8 +21,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/txthinking/brook/limits"
-	"github.com/txthinking/brook/plugin"
+	"brook/limits"
+	"brook/plugin"
 	"github.com/txthinking/x"
 	"golang.org/x/net/proxy"
 )

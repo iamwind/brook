@@ -20,7 +20,7 @@ import (
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-	"github.com/txthinking/brook/limits"
+	"brook/limits"
 	"github.com/txthinking/socks5"
 )
 

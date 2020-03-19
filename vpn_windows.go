@@ -19,7 +19,7 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/txthinking/brook/sysproxy"
+	"brook/sysproxy"
 )
 
 // AddRoutes adds routes.

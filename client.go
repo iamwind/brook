@@ -24,8 +24,8 @@ import (
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-	"github.com/txthinking/brook/limits"
-	"github.com/txthinking/brook/plugin"
+	"brook/limits"
+	"brook/plugin"
 	"github.com/txthinking/socks5"
 	xx "github.com/txthinking/x"
 )
