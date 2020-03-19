@@ -30,8 +30,8 @@ import (
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-	"github.com/txthinking/brook/limits"
-	"github.com/txthinking/brook/tproxy"
+	"brook/limits"
+	"brook/tproxy"
 	"github.com/txthinking/socks5"
 )
 

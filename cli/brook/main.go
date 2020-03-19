@@ -27,7 +27,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/txthinking/brook"
-	"github.com/txthinking/brook/sysproxy"
+	"brook/sysproxy"
 	"github.com/urfave/cli"
 )
 
@@ -526,11 +526,11 @@ func main() {
 				},
 				&cli.BoolFlag{
 					Name:  "letBrookDoAllForMe",
-					Usage: "See more: https://github.com/txthinking/brook/wiki/How-to-run-transparent-proxy-on-Linux%3F",
+					Usage: "See more: https://brook/wiki/How-to-run-transparent-proxy-on-Linux%3F",
 				},
 				&cli.BoolFlag{
 					Name:  "cleanBrookDidForMe",
-					Usage: "See more: https://github.com/txthinking/brook/wiki/How-to-run-transparent-proxy-on-Linux%3F",
+					Usage: "See more: https://brook/wiki/How-to-run-transparent-proxy-on-Linux%3F",
 				},
 				&cli.IntFlag{
 					Name:  "tcpTimeout",
