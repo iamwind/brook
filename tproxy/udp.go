@@ -61,17 +61,17 @@ func getUDPOriginalDstAddr(addr *net.UDPAddr) (originalDst *net.UDPAddr, err err
 	localport := "1080"
 	remotehost := addr.IP.String()
 	remoteport := strconv.Itoa(addr.Port)
-	//fmt.Printf("getUDPOriginalDstAddr rom %s:%v -> %s:%v\n", remotehost, remoteport, localhost, localport)
+	fmt.Printf("getUDPOriginalDstAddr rom %s:%v -> %s:%v\n", remotehost, remoteport, localhost, localport)
 	cmdString := fmt.Sprintf(fmt.Sprintf("conntrack -q %s -r %s -p udp --reply-port-dst %s --reply-port-src %s -L|awk '{print $5\"=\"$7}'|awk -F \"=\" '{print \"\"$2\":\"$4}'",
 		remotehost, localhost, remoteport, localport))
-	//fmt.Printf("IPv6 cmdString: %s\n", cmdString)
+	fmt.Printf("getUDPOriginalDstAddr cmdString: %s\n", cmdString)
 	tmp, err := exec.Command("bash", "-c", cmdString).Output()
 	if err != nil {
 		fmt.Printf("getUDPOriginalDstAddr conntrack error: %v\n", err)
 		return
 	}
 	out := strings.Replace(string(tmp), "\n", "", -1)
-	//fmt.Printf("getUDPOriginalDstAddr OriginDstAddr: %s\n", out)
+	fmt.Printf("getUDPOriginalDstAddr OriginDstAddr: %s\n", out)
 	ip := net.ParseIP(strings.Split(out, ":")[0])
 	port,_ := strconv.Atoi(strings.Split(out, ":")[1])
 
