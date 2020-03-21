@@ -133,12 +133,14 @@ func (s *Server) RunUDPServer() error {
 	for {
 		b := make([]byte, 65535)
 		n, addr, err := s.UDPConn.ReadFromUDP(b)
+		//log.Printf("RunUDPServer read from %s:%v", addr.String(), n)
 		if err != nil {
+			log.Printf("RunUDPServer ReadFromUDP err:%v", err)
 			return err
 		}
 		go func(addr *net.UDPAddr, b []byte) {
 			if err := s.UDPHandle(addr, b); err != nil {
-				log.Println(err)
+				log.Printf("RunUDPServer UDPHandle err:%v", err)
 				return
 			}
 		}(addr, b[0:n])
@@ -271,8 +273,10 @@ type ServerUDPExchange struct {
 func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	a, h, p, data, err := Decrypt(s.Password, b)
 	if err != nil {
+		log.Printf("UDPHandle Decrypt %s err:%v\n", addr.String(), err)
 		return err
 	}
+	log.Printf("UDPHandle read from %s:%v", addr.String(), data)
 	send := func(ue *ServerUDPExchange, data []byte) error {
 		if s.ServerAuthman != nil {
 			l := int(binary.BigEndian.Uint16(data[len(data)-2:]))
@@ -280,9 +284,10 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		}
 		i, err := ue.RemoteConn.WriteToUDP(data, ue.ServerAddr)
 		if err != nil {
+			log.Printf("UDPHandle send err:%v data:%v\n", err, data)
 			return err
 		}
-		fmt.Printf("UDPHandle send %s->%s data:%v\n", ue.RemoteConn.LocalAddr().String(), ue.ServerAddr.String(), data)
+		log.Printf("UDPHandle send %s->%s data:%v\n", ue.RemoteConn.LocalAddr().String(), ue.ServerAddr.String(), data)
 		if ue.Internet != nil {
 			if err := ue.Internet.UDPEgress(i); err != nil {
 				return err
@@ -312,6 +317,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	}
 	c, err := Dial.Dial("udp", address)
 	if err != nil {
+		fmt.Printf("UDPHandle Dial:%s err:%v\n", address, err)
 		return err
 	}
 
@@ -345,6 +351,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		Internet:   ai,
 	}
 	if err := send(ue, data); err != nil {
+		fmt.Printf("UDPHandle send() error:%v",err)
 		ue.RemoteConn.Close()
 		ue.Internet.Close()
 		return err
@@ -365,6 +372,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		for {
 			if s.UDPDeadline != 0 {
 				if err := ue.RemoteConn.SetDeadline(time.Now().Add(time.Duration(s.UDPDeadline) * time.Second)); err != nil {
+					fmt.Printf("UDPHandle UDPDeadline error:%v",err)
 					break
 				}
 			}
@@ -378,7 +386,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 
 			a, addr, port, err := socks5.ParseAddress(remoteAddr.String())
 			if err != nil {
-				log.Println(err)
+				fmt.Printf("UDPHandle ParseAddress %s error:%v", remoteAddr.String(), err)
 				break
 			}
 			d := make([]byte, 0, 7)
@@ -388,16 +396,16 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 			d = append(d, b[0:n]...)
 			cd, err := Encrypt(s.Password, d)
 			if err != nil {
-				log.Println(err)
 				break
 			}
 			i, err := s.UDPConn.WriteToUDP(cd, ue.ClientAddr)
 			if err != nil {
+				fmt.Printf("UDPHandle WriteToUDP %s error:%v", ue.ClientAddr, err)
 				break
 			}
 			if ue.Internet != nil {
 				if err := ue.Internet.UDPEgress(i); err != nil {
-					log.Println(err)
+					fmt.Printf("UDPHandle ue.Internet error:%v",err)
 					break
 				}
 			}

@@ -181,15 +181,16 @@ func Decrypt(p, b []byte) (a byte, addr, port, data []byte, err error) {
 	if err != nil {
 		return
 	}
-	i, err := strconv.Atoi(string(bb[0:10]))
-	if err != nil {
-		return
-	}
-	if time.Now().Unix()-int64(i) > 90 {
-		time.Sleep(time.Duration(x.Random(1, 60*10)) * time.Second)
-		err = errors.New("Expired request")
-		return
-	}
+	//remove time judge
+	//i, err := strconv.Atoi(string(bb[0:10]))
+	//if err != nil {
+	//	return
+	//}
+	//if time.Now().Unix()-int64(i) > 90 {
+	//	time.Sleep(time.Duration(x.Random(1, 60*10)) * time.Second)
+	//	err = errors.New("Expired request")
+	//	return
+	//}
 	bb = bb[10:]
 	a = bb[0]
 	if a == socks5.ATYPIPv4 {
