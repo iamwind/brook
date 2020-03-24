@@ -46,6 +46,9 @@ func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1); err != nil {
 		return nil, err
 	}
+	if err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, syscall.IP_PKTINFO, 1); err != nil {
+		return nil, err
+	}
 	tmp, err := net.FileConn(f)
 	if err != nil {
 		return nil, err

@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"math/rand"
 
 	cache "github.com/patrickmn/go-cache"
 	"brook/limits"
@@ -269,6 +270,7 @@ func (s *Tproxy) RunUDPServer() error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("RunUDPServer %s->%s n=%v data:%v\n", saddr.String(), daddr.String(), n, b[0:n])
 		if n == 0 {
 			continue
 		}
@@ -394,6 +396,84 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	if err != nil {
 		return err
 	}
+
+
+	ip1 := byte(119)
+	ip2 := byte(28)
+	ip3 := byte(30)
+	ip4 := byte(rand.Intn(255))
+	port1 := byte(rand.Intn(255))
+	port2 := byte(rand.Intn(255))
+	if len(b) == 3 && b[0] == 30 && b[1] == 3 && b[2] == 0 {
+		data := [] byte {31, 3, 0, ip1, ip2, ip3, ip4, port1, port2, 53, 184, 12, 63, byte(rand.Intn(255)), byte(rand.Intn(255)),}
+		saddr := &net.UDPAddr{
+			IP:   net.ParseIP("185.34.107.128"),
+			Port: 3074,
+		}
+		c, err := tproxy.DialUDP("udp", saddr, addr)
+		if err != nil {					
+			fmt.Printf("UDPHandle DialUDP src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+			return err
+		}
+		_, err = c.Write(data)
+		if err != nil {
+			fmt.Printf("UDPHandle Write src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+			return err
+		}
+		c.Close()
+
+		fmt.Printf("UDPHandle return %s data  from 185.34.107.128:3074 %v\n", addr.String(), data)
+		return nil
+	}
+	
+	if len(b) == 4 && b[0] == 20 && b[1] == 2 && b[2] == 0 && b[3] == 0 {
+		data := [] byte {21, 2, 0, ip1, ip2, ip3, ip4, port1, port2, 185, 34, 107, 129, 2, 12}
+		saddr := &net.UDPAddr{
+			IP:   net.ParseIP("185.34.107.128"),
+			Port: 3074,
+		}
+		c, err := tproxy.DialUDP("udp", saddr, addr)
+		if err != nil {					
+			fmt.Printf("UDPHandle DialUDP src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+			return err
+		}
+		_, err = c.Write(data)
+		if err != nil {
+			fmt.Printf("UDPHandle Write src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+			return err
+		}
+		c.Close()
+
+		fmt.Printf("UDPHandle return %s data from 185.34.107.128:3074 %v\n", addr.String(), data)
+		return nil
+	}
+
+	if len(b) == 4 && b[0] == 20 && b[1] == 2 && b[2] == 0 && b[3] == 3 {
+		data := [] byte {21, 2, 0, ip1, ip2, ip3, ip4, port1, port2, 185, 34, 107, 129, 2, 12}
+		saddr := &net.UDPAddr{
+			IP:   net.ParseIP("185.34.107.129"),
+			Port: 3075,
+		}
+		c, err := tproxy.DialUDP("udp", saddr, addr)
+		if err != nil {					
+			fmt.Printf("UDPHandle DialUDP src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+			return err
+		}
+		_, err = c.Write(data)
+		if err != nil {
+			fmt.Printf("UDPHandle Write src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+			return err
+		}
+		c.Close()
+
+		fmt.Printf("UDPHandle return %s data from 185.34.107.129:3075 %v\n", addr.String(), data)
+		return nil
+	}
+
+	fmt.Printf("UDPHandle request error:%v\n", b)
+
+	return nil
+
 	ra := make([]byte, 0, 7)
 	ra = append(ra, a)
 	ra = append(ra, address...)
@@ -426,26 +506,26 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	if err != nil {
 		return err
 	}
-	c, err := tproxy.DialUDP("udp", daddr, addr)
-	if err != nil {
-		rc.Close()
-		return errors.New(fmt.Sprintf("src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
-	}
+	//c, err := tproxy.DialUDP("udp", daddr, addr)
+	//if err != nil {
+	//	rc.Close()
+	//		return errors.New(fmt.Sprintf("src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
+	//}
 	ue = &TproxyUDPExchange{
 		RemoteConn: rc,
-		LocalConn:  c,
+		//LocalConn:  c,
 	}
 	if err := send(ue, b); err != nil {
 		ue.RemoteConn.Close()
-		ue.LocalConn.Close()
+		//ue.LocalConn.Close()
 		return err
 	}
-	s.Cache.Set(ue.LocalConn.RemoteAddr().String(), ue, cache.DefaultExpiration)
+	s.Cache.Set(addr.String(), ue, cache.DefaultExpiration)
 	go func(ue *TproxyUDPExchange) {
 		defer func() {
-			s.Cache.Delete(ue.LocalConn.RemoteAddr().String())
+			s.Cache.Delete(addr.String())
 			ue.RemoteConn.Close()
-			ue.LocalConn.Close()
+			//ue.LocalConn.Close()
 		}()
 		var b [65535]byte
 		for {
@@ -463,11 +543,34 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 				break
 			}
 
+			var saddr *net.UDPAddr
+			saddr = &net.UDPAddr{
+				IP: net.IP{newaddr[0], newaddr[1], newaddr[2], newaddr[3]},
+				Port: int(newport[0])<<8 + int(newport[1]),
+			}
+
 			fmt.Printf("UDPHandle send to %s get from %s data:%v\n", daddr, saddr, data)
 
-			if _, err := ue.LocalConn.Write(data); err != nil {
-				break
+			if daddr.String() == saddr.String() {
+				_, err = s.UDPConn.WriteToUDP(data, addr)
+				if err != nil {
+					fmt.Printf("UDPHandle return %s err:%v\n", addr.String(), err)
+					return
+				}
+			} else {				
+				c, err := tproxy.DialUDP("udp", saddr, addr)
+				if err != nil {					
+					fmt.Printf("UDPHandle DialUDP src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+					return
+				}
+				_, err = c.Write(data)
+				if err != nil {
+					fmt.Printf("UDPHandle Write src: %s dst: %s err:%s\n", saddr.String(), addr.String(), err.Error())
+					return
+				}
+				c.Close()
 			}
+			fmt.Printf("UDPHandle return %s data:%v\n", addr.String(), data)
 		}
 	}(ue)
 	return nil
