@@ -272,6 +272,44 @@ func (s *Tproxy) RunUDPServer() error {
 		return err
 	}
 	defer s.UDPConn.Close()
+
+	go func(){
+		c, err := tproxy.DialUDP("udp", &net.UDPAddr{
+			IP:   net.IPv4zero,
+			Port: 0,
+		}, &net.UDPAddr{
+			IP:   net.ParseIP("185.34.107.128"),
+			Port: 3074,
+		})
+		if err != nil {
+			//call alarm
+			return
+		}
+		for {
+			time.Sleep(1 * time.Minute)
+
+			data := [] byte {0x1e, 0x03, 0x00}
+			
+			_, err = c.Write(data)
+			if err != nil {
+				fmt.Printf("!!!!!!!!!!!!!!!!!!!RunUDPServer TEST WRITE ERROR!!!!!!!!!!!!!!!!!:%v\n", err)
+				//call alarm
+				http.Get("http://sys-alarm-api-18-yw.xunyou.com:33399/api_brook.php?info=brook:test:write:failed")
+				continue
+			}			
+
+			var b  []byte
+			_, err := c.Read(b[:])
+			if err != nil {
+				fmt.Printf("!!!!!!!!!!!!!!!!!!!RunUDPServer TEST READ ERROR!!!!!!!!!!!!!!!!!:%v\n", err)
+				//call alarm
+				http.Get("http://sys-alarm-api-18-yw.xunyou.com:33399/api_brook.php?info=brook:test:read:failed")
+				continue
+			}
+			fmt.Printf("------------------RunUDPServer TEST SUCCESS----------------\n")
+		}
+	}()
+
 	for {
 		b := make([]byte, 65535)
 		n, saddr, daddr, err := tproxy.ReadFromUDP(s.UDPConn, b)
