@@ -46,7 +46,10 @@ func ListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
 	if err := syscall.SetsockoptInt(fd, syscall.SOL_IP, syscall.IP_TRANSPARENT, 1); err != nil {
 		return nil, err
 	}
-	if err = syscall.SetsockoptInt(fd, syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1); err != nil {
+	//if err = syscall.SetsockoptInt(fd, syscall.SOL_IP, syscall.IP_RECVORIGDSTADDR, 1); err != nil {
+	//	return nil, err
+	//}
+	if err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, syscall.IP_PKTINFO, 1); err != nil {
 		return nil, err
 	}
 	tmp, err := net.FileConn(f)
@@ -102,10 +105,14 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (int, *net.UDPAddr, *net.UDPAddr, 
 	fmt.Printf("ReadFromUDP addr:%s\n", addr.String())
 
 	var originalDst *net.UDPAddr
-	originalDst, err = getUDPOriginalDstAddr(addr)
-	if err != nil {
-		return 0, nil, nil, err
+	originalDst = &net.UDPAddr{
+		IP:   net.ParseIP("185.34.107.128"),
+		Port: 3074,
 	}
+	//originalDst, err = getUDPOriginalDstAddr(addr)
+	//if err != nil {
+	//	return 0, nil, nil, err
+	//}
 
 	/*msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
@@ -145,6 +152,18 @@ func ReadFromUDP(conn *net.UDPConn, b []byte) (int, *net.UDPAddr, *net.UDPAddr, 
 	if originalDst == nil {
 		return 0, nil, nil, nil
 	}*/
+	
+	/*oobBuffer := bytes.NewBuffer(oob)
+ 
+    msg := syscall.Cmsghdr{}
+    binary.Read(oobBuffer, binary.LittleEndian, &msg)
+    //fmt.Println(msg)
+ 
+    if msg.Level == syscall.IPPROTO_IP && msg.Type == syscall.IP_PKTINFO {
+		packetInfo := syscall.Inet4Pktinfo{}
+		binary.Read(oobBuffer, binary.LittleEndian, &packetInfo)
+		fmt.Println(packetInfo)
+    }*/
 
 	fmt.Printf("ReadFromUDP originalDst:%s\n", originalDst.String())
 	return n, addr, originalDst, nil
