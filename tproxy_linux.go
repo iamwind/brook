@@ -29,8 +29,8 @@ import (
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-	"github.com/txthinking/brook/limits"
-	"github.com/txthinking/brook/tproxy"
+	"brook/limits"
+	"brook/tproxy"
 	"github.com/txthinking/socks5"
 )
 
@@ -389,6 +389,7 @@ type TproxyUDPExchange struct {
 }
 
 func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
+	fmt.Printf("UDPHandle addr=%s daddr=%s\n", addr.String(), daddr.String())
 	a, address, port, err := socks5.ParseAddress(daddr.String())
 	if err != nil {
 		return err
@@ -457,10 +458,13 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 			if err != nil {
 				break
 			}
-			_, _, _, data, err := Decrypt(s.Password, b[0:n])
+			_,newaddr, newport, data, err := Decrypt(s.Password, b[0:n])
 			if err != nil {
 				break
 			}
+
+			fmt.Printf("UDPHandle send to %s get from %s data:%v\n", daddr, saddr, data)
+
 			if _, err := ue.LocalConn.Write(data); err != nil {
 				break
 			}
